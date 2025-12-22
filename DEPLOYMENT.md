@@ -13,7 +13,7 @@
     - **Plan**: Free (or higher).
 4.  **Environment Variables**:
     - Add `PORT` = `8080`.
-    - Optional: set `ALLOWED_HOSTS` to a comma-separated list of hostnames (e.g., `bing-images-mcp-server.onrender.com`) to restrict host validation.
+    - Optional: set `ALLOWED_HOSTS` to a comma-separated list of hostnames (e.g., `bing-images-mcp-server.onrender.com` or `.onrender.com` for subdomains) to restrict host validation.
 5.  **Deploy**: Click "Create Web Service".
 
 Render will build the Docker image and deploy it. Once deployed, you will get a URL (e.g., `https://bing-images-mcp-server.onrender.com`).

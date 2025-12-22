@@ -13,10 +13,7 @@ if raw_allowed_hosts and raw_allowed_hosts.strip() != "*":
         for host in raw_allowed_hosts.split(",")
         if host.strip()
     ]
-else:
-    allowed_hosts = ["*"]
-
-app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
 
 if __name__ == "__main__":
     # Render expects the server to listen on port 10000 by default, 
