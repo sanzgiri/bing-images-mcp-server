@@ -2,9 +2,8 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 
 export async function getBingImage(country: string = "us", date?: string) {
-    const transport = new SSEClientTransport(
-        new URL("http://127.0.0.1:8080/sse")
-    );
+    const baseUrl = process.env.MCP_URL ?? "http://127.0.0.1:8080";
+    const transport = new SSEClientTransport(new URL("/sse", baseUrl));
 
     const client = new Client(
         {

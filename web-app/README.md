@@ -13,6 +13,7 @@ A Next.js application that displays the Bing Image of the Day and allows users t
     Create a `.env.local` file in the root of the `web-app` directory:
     ```bash
     OPENAI_API_KEY=sk-...
+    MCP_URL=http://127.0.0.1:8080
     ```
 
 3.  **Run the MCP Server**:

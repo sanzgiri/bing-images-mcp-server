@@ -22,3 +22,10 @@ Render will build the Docker image and deploy it. Once deployed, you will get a 
 You can connect to the server using an MCP client that supports SSE.
 - **SSE Endpoint**: `https://<your-app-url>/sse`
 - **POST Endpoint**: `https://<your-app-url>/messages`
+
+## Deploying the Web App (Optional)
+
+Deploy the Next.js app as a separate Render web service with the repo root set to `web-app`.
+- **Build Command**: `npm install && npm run build`
+- **Start Command**: `npm run start`
+- **Environment**: set `MCP_URL` to the deployed MCP server base URL (e.g., `https://bing-images-mcp-server.onrender.com`).
