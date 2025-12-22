@@ -25,7 +25,7 @@ You can connect to the server using an MCP client that supports SSE.
 
 ## Deploying the Web App (Optional)
 
-Deploy the Next.js app as a separate Render web service with the repo root set to `web-app`.
+Deploy the Next.js app as a separate web service with the repo root set to `web-app`.
 - **Build Command**: `npm install && npm run build`
 - **Start Command**: `npm run start`
-- **Environment**: set `MCP_URL` to the deployed MCP server base URL (e.g., `https://bing-images-mcp-server.onrender.com`).
+- **Environment**: set `USE_MCP=true` and `MCP_URL` to the deployed MCP server base URL (e.g., `https://bing-images-mcp-server.onrender.com`) if you want to use MCP. Otherwise, leave `USE_MCP` unset to use direct fetch.
