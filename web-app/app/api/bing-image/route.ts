@@ -1,10 +1,21 @@
 import { NextResponse } from 'next/server';
-import { getBingImage } from '@/lib/mcp';
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 
 const BASE_URL = 'https://peapix.com';
+
+const SUPPORTED_COUNTRIES = [
+  'us',
+  'gb',
+  'de',
+  'fr',
+  'jp',
+  'au',
+  'ca',
+  'cn',
+  'in',
+];
 
 const MONTHS = [
   'January',
@@ -28,6 +39,16 @@ function stripTags(value: string) {
 function extractFirstImageLink(html: string) {
   const match = html.match(/href="(\/bing\/\d+)"/i);
   return match?.[1] ?? null;
+}
+
+function extractAllImageLinks(html: string) {
+  const regex = /href="(\/bing\/\d+)"/gi;
+  const links = new Set<string>();
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(html))) {
+    links.add(match[1]);
+  }
+  return Array.from(links);
 }
 
 function extractImageLinkByDate(html: string, date: string) {
@@ -66,6 +87,18 @@ async function fetchHtml(url: string) {
 }
 
 async function fetchDirect(country: string, date?: string) {
+  if (date === 'random') {
+    const listUrl = `${BASE_URL}/bing/${country}`;
+    const listHtml = await fetchHtml(listUrl);
+    const links = extractAllImageLinks(listHtml);
+    if (!links.length) {
+      return null;
+    }
+    const link = links[Math.floor(Math.random() * links.length)];
+    const pageUrl = `${BASE_URL}${link}`;
+    const pageHtml = await fetchHtml(pageUrl);
+    return extractImageDetails(pageHtml, pageUrl);
+  }
   if (date) {
     const [year, month] = date.split('-');
     const listUrl = `${BASE_URL}/bing/${country}/${year}/${month}`;
@@ -92,20 +125,17 @@ async function fetchDirect(country: string, date?: string) {
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const country = searchParams.get('country') ?? 'us';
+  const randomCountry = (searchParams.get('randomCountry') ?? '').toLowerCase() === 'true';
+  const countryParam = (searchParams.get('country') ?? 'us').toLowerCase();
   const date = searchParams.get('date') ?? undefined;
-  const useMcp = (process.env.USE_MCP ?? '').toLowerCase() === 'true';
+  const random = (searchParams.get('random') ?? '').toLowerCase() === 'true';
+  const country =
+    randomCountry || countryParam === 'random'
+      ? SUPPORTED_COUNTRIES[Math.floor(Math.random() * SUPPORTED_COUNTRIES.length)]
+      : countryParam;
 
   try {
-    if (useMcp) {
-      const data = await getBingImage(country, date ?? undefined);
-      if (!data) {
-        return NextResponse.json({ error: 'Failed to fetch image.' }, { status: 502 });
-      }
-      return NextResponse.json(JSON.parse(data));
-    }
-
-    const details = await fetchDirect(country, date ?? undefined);
+    const details = await fetchDirect(country, random ? 'random' : date ?? undefined);
     if (!details) {
       return NextResponse.json({ error: 'Image not found.' }, { status: 404 });
     }
