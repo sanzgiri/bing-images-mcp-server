@@ -6,10 +6,16 @@ import uvicorn
 # Create the SSE app
 # This exposes the MCP server as an ASGI application compatible with SSE
 app = mcp.sse_app()
-allowed_hosts = os.getenv(
-    "ALLOWED_HOSTS",
-    "localhost,127.0.0.1,*.onrender.com",
-).split(",")
+raw_allowed_hosts = os.getenv("ALLOWED_HOSTS")
+if raw_allowed_hosts and raw_allowed_hosts.strip() != "*":
+    allowed_hosts = [
+        host.strip()
+        for host in raw_allowed_hosts.split(",")
+        if host.strip()
+    ]
+else:
+    allowed_hosts = ["*"]
+
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
 
 if __name__ == "__main__":
