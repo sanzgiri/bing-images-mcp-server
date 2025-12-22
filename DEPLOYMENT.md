@@ -1,0 +1,24 @@
+# Deploying Bing Image MCP Server to Render
+
+1.  **Push to GitHub**: Ensure your code is pushed to a GitHub repository.
+2.  **Create a New Web Service on Render**:
+    - Go to [Render Dashboard](https://dashboard.render.com/).
+    - Click "New +" -> "Web Service".
+    - Connect your GitHub repository.
+3.  **Configure the Service**:
+    - **Name**: `bing-images-mcp-server` (or your choice).
+    - **Runtime**: `Docker`.
+    - **Region**: Choose a region close to you.
+    - **Branch**: `main` (or your working branch).
+    - **Plan**: Free (or higher).
+4.  **Environment Variables**:
+    - Add `PORT` = `8080`.
+5.  **Deploy**: Click "Create Web Service".
+
+Render will build the Docker image and deploy it. Once deployed, you will get a URL (e.g., `https://bing-images-mcp-server.onrender.com`).
+
+## Using the Deployed Server
+
+You can connect to the server using an MCP client that supports SSE.
+- **SSE Endpoint**: `https://<your-app-url>/sse`
+- **POST Endpoint**: `https://<your-app-url>/messages`

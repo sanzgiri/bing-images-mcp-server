@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: bing-images-mcp-server
+    env: docker
+    plan: free
+    buildCommand: docker build -t bing-images-mcp-server .
+    startCommand: uvicorn main:app --host 0.0.0.0 --port 8080
+    envVars:
+      - key: PORT
+        value: 8080

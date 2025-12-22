@@ -1,0 +1,71 @@
+import Chat from './components/Chat';
+import { Info } from 'lucide-react';
+import { unstable_noStore as noStore } from 'next/cache';
+import { headers } from 'next/headers';
+
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+
+export default async function Home() {
+  noStore();
+  const hdrs = await headers();
+  const host = hdrs.get('x-forwarded-host') ?? hdrs.get('host') ?? 'localhost:3000';
+  const proto = hdrs.get('x-forwarded-proto') ?? 'http';
+  const res = await fetch(`${proto}://${host}/api/bing-image?country=us`, {
+    cache: 'no-store',
+  });
+  const image = res.ok ? await res.json() : null;
+
+  if (!image) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black text-white">
+        <p>Failed to load image. Please ensure the MCP server is running.</p>
+      </div>
+    );
+  }
+
+  return (
+    <main className="relative min-h-screen w-full overflow-hidden bg-black">
+      {/* Background Image */}
+      <div
+        className="absolute inset-0 z-0 bg-cover bg-center transition-opacity duration-1000"
+        style={{ backgroundImage: `url(${image.image_url})` }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30" />
+      </div>
+
+      {/* Content */}
+      <div className="relative z-10 min-h-screen flex flex-col justify-between p-6 md:p-12">
+        {/* Header */}
+        <header className="flex justify-between items-start">
+          <div>
+            <h1 className="text-2xl md:text-4xl font-bold text-white tracking-tight drop-shadow-lg">
+              Bing Image of the Day
+            </h1>
+            <p className="text-white/70 text-sm mt-1">Powered by MCP & Peapix</p>
+          </div>
+        </header>
+
+        {/* Footer / Info */}
+        <div className="max-w-2xl">
+          <div className="bg-black/30 backdrop-blur-md border border-white/10 rounded-xl p-6 text-white transform transition-all hover:bg-black/40">
+            <h2 className="text-xl md:text-3xl font-semibold mb-2 drop-shadow-md">
+              {image.title}
+            </h2>
+            <div className="flex items-center gap-2 text-white/60 text-sm">
+              <Info className="w-4 h-4" />
+              <span>
+                <a href={image.page_url} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-white">
+                  View on Peapix
+                </a>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Chat Interface */}
+      <Chat imageContext={image} />
+    </main>
+  );
+}
