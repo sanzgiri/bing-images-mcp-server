@@ -79,7 +79,14 @@ function extractImageDetails(html: string, pageUrl: string) {
 }
 
 async function fetchHtml(url: string) {
-  const response = await fetch(url, { cache: 'no-store' });
+  const response = await fetch(url, {
+    cache: 'no-store',
+    headers: {
+      'user-agent':
+        'Mozilla/5.0 (compatible; BingExplorer/1.0; +https://github.com/sanzgiri/bing-images-mcp-server)',
+      accept: 'text/html',
+    },
+  });
   if (!response.ok) {
     throw new Error(`Failed to fetch ${url}`);
   }
@@ -142,6 +149,7 @@ export async function GET(request: Request) {
     return NextResponse.json(details);
   } catch (error) {
     console.error('Error fetching image:', error);
-    return NextResponse.json({ error: 'Failed to fetch image.' }, { status: 502 });
+    const message = error instanceof Error ? error.message : 'Failed to fetch image.';
+    return NextResponse.json({ error: message }, { status: 502 });
   }
 }
