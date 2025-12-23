@@ -1,7 +1,7 @@
 import Chat from './components/Chat';
-import { Info } from 'lucide-react';
 import { unstable_noStore as noStore } from 'next/cache';
 import { headers } from 'next/headers';
+import ImageInfo from './components/ImageInfo';
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
@@ -54,19 +54,7 @@ export default async function Home() {
 
         {/* Footer / Info */}
         <div className="max-w-2xl">
-          <div className="bg-black/30 backdrop-blur-md border border-white/10 rounded-xl p-6 text-white transform transition-all hover:bg-black/40">
-            <h2 className="text-xl md:text-3xl font-semibold mb-2 drop-shadow-md">
-              {image.title}
-            </h2>
-            <div className="flex items-center gap-2 text-white/60 text-sm">
-              <Info className="w-4 h-4" />
-              <span>
-                <a href={image.page_url} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-white">
-                  View on Peapix
-                </a>
-              </span>
-            </div>
-          </div>
+          <ImageInfo image={image} />
         </div>
       </div>
 
