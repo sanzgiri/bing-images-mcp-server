@@ -1,6 +1,7 @@
 'use client';
 
 import { useChat } from '@ai-sdk/react';
+import { TextStreamChatTransport } from 'ai';
 // import { Message } from 'ai'; // Message not exported?
 import { Send, MessageSquare } from 'lucide-react';
 import { useState } from 'react';
@@ -16,7 +17,9 @@ interface ImageDetails {
 }
 
 export default function Chat({ imageContext }: { imageContext: ImageDetails }) {
-    const { messages, status, sendMessage, error } = useChat();
+    const { messages, status, sendMessage, error } = useChat({
+        transport: new TextStreamChatTransport({ api: '/api/chat' }),
+    });
     const [input, setInput] = useState('');
     const [isOpen, setIsOpen] = useState(false);
 
