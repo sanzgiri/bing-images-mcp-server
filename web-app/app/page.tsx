@@ -11,7 +11,7 @@ export default async function Home() {
   const hdrs = await headers();
   const host = hdrs.get('x-forwarded-host') ?? hdrs.get('host') ?? 'localhost:3000';
   const proto = hdrs.get('x-forwarded-proto') ?? 'http';
-  const res = await fetch(`${proto}://${host}/api/bing-image?country=us`, {
+  const res = await fetch(`${proto}://${host}/api/bing-image?country=us&random=true`, {
     cache: 'no-store',
   });
   const image = res.ok ? await res.json() : null;
@@ -37,13 +37,19 @@ export default async function Home() {
       {/* Content */}
       <div className="relative z-10 min-h-screen flex flex-col justify-between p-6 md:p-12">
         {/* Header */}
-        <header className="flex justify-between items-start">
+        <header className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl md:text-4xl font-bold text-white tracking-tight drop-shadow-lg">
               Bing Image of the Day
             </h1>
             <p className="text-white/70 text-sm mt-1">Powered by Peapix</p>
           </div>
+          <a
+            href="/?random=true"
+            className="text-sm text-white/80 border border-white/20 rounded-full px-3 py-1.5 hover:text-white hover:border-white/40 transition"
+          >
+            Another image
+          </a>
         </header>
 
         {/* Footer / Info */}

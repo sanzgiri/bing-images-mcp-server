@@ -8,6 +8,9 @@ export async function POST(req: Request) {
     const { messages, imageContext } = await req.json();
     console.log("Messages received:", messages.length);
     console.log("API Key present:", !!process.env.OPENAI_API_KEY);
+    if (!process.env.OPENAI_API_KEY) {
+        return new Response('Missing OPENAI_API_KEY', { status: 401 });
+    }
 
 
     const systemPrompt = `You are a helpful assistant. The user is looking at a Bing Image of the Day.

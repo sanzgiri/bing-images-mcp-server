@@ -16,7 +16,9 @@ interface ImageDetails {
 }
 
 export default function Chat({ imageContext }: { imageContext: ImageDetails }) {
-    const { messages, status, sendMessage } = useChat();  // Remove invalid body option
+    const { messages, status, sendMessage, error } = useChat({
+        body: { imageContext },
+    });
     const [input, setInput] = useState('');
     const [isOpen, setIsOpen] = useState(false);
 
@@ -58,7 +60,12 @@ export default function Chat({ imageContext }: { imageContext: ImageDetails }) {
 
                     {/* Messages */}
                     <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                        {messages.length === 0 && (
+                        {error && (
+                            <div className="text-red-400 text-sm text-center">
+                                Chat failed to respond. Check your API key and try again.
+                            </div>
+                        )}
+                        {messages.length === 0 && !error && (
                             <div className="text-white/50 text-sm text-center mt-10">
                                 Ask anything about &quot;{imageContext?.title}&quot;!
                             </div>
