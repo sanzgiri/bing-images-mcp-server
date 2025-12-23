@@ -19,7 +19,7 @@ export default async function Home() {
   if (!image) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-black text-white">
-        <p>Failed to load image. Please ensure the MCP server is running.</p>
+        <p>Failed to load image. Please try again.</p>
       </div>
     );
   }
@@ -42,7 +42,7 @@ export default async function Home() {
             <h1 className="text-2xl md:text-4xl font-bold text-white tracking-tight drop-shadow-lg">
               Bing Image of the Day
             </h1>
-            <p className="text-white/70 text-sm mt-1">Powered by MCP & Peapix</p>
+            <p className="text-white/70 text-sm mt-1">Powered by Peapix</p>
           </div>
         </header>
 
