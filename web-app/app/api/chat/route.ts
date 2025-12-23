@@ -27,5 +27,5 @@ Answer the user's questions about this image. If you don't know the answer, you 
         messages: convertToCoreMessages(messages),
     });
 
-    return result.toTextStreamResponse();
+    return result.toDataStreamResponse();
 }
