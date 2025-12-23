@@ -16,9 +16,7 @@ interface ImageDetails {
 }
 
 export default function Chat({ imageContext }: { imageContext: ImageDetails }) {
-    const { messages, status, sendMessage, error } = useChat({
-        body: { imageContext },
-    });
+    const { messages, status, sendMessage, error } = useChat();
     const [input, setInput] = useState('');
     const [isOpen, setIsOpen] = useState(false);
 
@@ -31,12 +29,10 @@ export default function Chat({ imageContext }: { imageContext: ImageDetails }) {
     const handleSubmit = async (event?: React.FormEvent) => {
         event?.preventDefault();
         if (!input.trim()) return;
-        await sendMessage({
-            text: input,
-            // Passing imageContext via custom headers or additional body if supported by backend
-            // For now, assuming standard text message, will investigate backend expectation in next step if needed.
-            // Vercel AI SDK v5 usually sends data via `data` property or customized request body in `fetch` option if needed.
-        });
+        await sendMessage(
+            { text: input },
+            { body: { imageContext } }
+        );
         setInput('');
     };
 
