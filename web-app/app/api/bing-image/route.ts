@@ -36,28 +36,39 @@ function stripTags(value: string) {
   return value.replace(/<[^>]+>/g, '').trim();
 }
 
-function extractStory(html: string) {
+function findInfoBlock(html: string) {
+  const blocks = [
+    ...html.matchAll(
+      /<div[^>]+class=["'][^"']*position-relative[^"']*["'][^>]*>([\s\S]*?)<\/div>/gi
+    ),
+  ];
+  for (const match of blocks) {
+    const body = match[1];
+    if (/<h3[^>]*>[\s\S]*?<\/h3>/i.test(body) || /<p[^>]*>/i.test(body)) {
+      return body;
+    }
+  }
   const storyBlock =
     html.match(/<div[^>]+class=["'][^"']*story[^"']*["'][^>]*>([\s\S]*?)<\/div>/i) ??
     html.match(
       /<div[^>]+class=["'][^"']*description[^"']*["'][^>]*>([\s\S]*?)<\/div>/i
     );
-  if (storyBlock) {
-    const paragraphMatches = [...storyBlock[1].matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)];
-    if (paragraphMatches.length === 0) {
-      const text = stripTags(storyBlock[1]);
-      return text ? text : null;
-    }
-    const paragraphs = paragraphMatches
-      .map((match) => stripTags(match[1]))
-      .filter((text) => text.length > 0);
-    return paragraphs.length ? paragraphs.join('\n\n') : null;
-  }
+  return storyBlock ? storyBlock[1] : null;
+}
 
-  const paragraphMatches = [...html.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)];
+function extractStory(html: string) {
+  const block = findInfoBlock(html);
+  if (!block) {
+    return null;
+  }
+  const paragraphMatches = [...block.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)];
+  if (paragraphMatches.length === 0) {
+    const text = stripTags(block);
+    return text ? text : null;
+  }
   const paragraphs = paragraphMatches
     .map((match) => stripTags(match[1]))
-    .filter((text) => text.length > 40 && !text.includes('©'));
+    .filter((text) => text.length > 0);
   return paragraphs.length ? paragraphs.join('\n\n') : null;
 }
 
@@ -97,7 +108,8 @@ function extractImageDetails(html: string, pageUrl: string) {
   const ogMatch = html.match(/property=["']og:image["'][^>]+content=["']([^"']+)["']/i);
   const ogDesc = html.match(/property=["']og:description["'][^>]+content=["']([^"']+)["']/i);
   const metaDesc = html.match(/name=["']description["'][^>]+content=["']([^"']+)["']/i);
-  const subtitleMatch = html.match(/<h3[^>]*>([\s\S]*?)<\/h3>/i);
+  const infoBlock = findInfoBlock(html);
+  const subtitleMatch = infoBlock ? infoBlock.match(/<h3[^>]*>([\s\S]*?)<\/h3>/i) : null;
   const storyMatch = extractStory(html);
   const paragraphMatch = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
   const bodyDesc =
