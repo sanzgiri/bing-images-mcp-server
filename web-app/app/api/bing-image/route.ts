@@ -54,16 +54,10 @@ function extractStory(html: string) {
     return paragraphs.length ? paragraphs.join('\n\n') : null;
   }
 
-  const infoBlock = html.match(
-    /<div[^>]+class=["'][^"']*position-relative[^"']*["'][^>]*>([\s\S]*?)<\/div>/i
-  );
-  if (!infoBlock) {
-    return null;
-  }
-  const paragraphMatches = [...infoBlock[1].matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)];
+  const paragraphMatches = [...html.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)];
   const paragraphs = paragraphMatches
     .map((match) => stripTags(match[1]))
-    .filter((text) => text.length > 0);
+    .filter((text) => text.length > 40 && !text.includes('©'));
   return paragraphs.length ? paragraphs.join('\n\n') : null;
 }
 
