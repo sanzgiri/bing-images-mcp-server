@@ -37,9 +37,11 @@ function stripTags(value: string) {
 }
 
 function extractStory(html: string) {
-  const storyBlock = html.match(
-    /<div[^>]+class=["'][^"']*story[^"']*["'][^>]*>([\s\S]*?)<\/div>/i
-  );
+  const storyBlock =
+    html.match(/<div[^>]+class=["'][^"']*story[^"']*["'][^>]*>([\s\S]*?)<\/div>/i) ??
+    html.match(
+      /<div[^>]+class=["'][^"']*description[^"']*["'][^>]*>([\s\S]*?)<\/div>/i
+    );
   if (!storyBlock) {
     return null;
   }
@@ -100,11 +102,15 @@ function extractImageDetails(html: string, pageUrl: string) {
     (paragraphMatch ? [paragraphMatch[0], paragraphMatch[1]] : null);
   const titleMatch = html.match(/<h1[^>]*>(.*?)<\/h1>/i);
   const description = ogDesc?.[1] ?? metaDesc?.[1] ?? (bodyDesc ? stripTags(bodyDesc[1]) : null);
+  const fullDescription =
+    storyMatch && (!description || storyMatch.length > description.length + 40)
+      ? storyMatch
+      : null;
   return {
     title: titleMatch ? stripTags(titleMatch[1]) : 'Unknown Title',
     image_url: ogMatch?.[1] ?? null,
     description,
-    full_description: storyMatch && storyMatch !== description ? storyMatch : null,
+    full_description: fullDescription,
     page_url: pageUrl,
   };
 }
