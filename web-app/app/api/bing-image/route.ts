@@ -42,14 +42,25 @@ function extractStory(html: string) {
     html.match(
       /<div[^>]+class=["'][^"']*description[^"']*["'][^>]*>([\s\S]*?)<\/div>/i
     );
-  if (!storyBlock) {
+  if (storyBlock) {
+    const paragraphMatches = [...storyBlock[1].matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)];
+    if (paragraphMatches.length === 0) {
+      const text = stripTags(storyBlock[1]);
+      return text ? text : null;
+    }
+    const paragraphs = paragraphMatches
+      .map((match) => stripTags(match[1]))
+      .filter((text) => text.length > 0);
+    return paragraphs.length ? paragraphs.join('\n\n') : null;
+  }
+
+  const infoBlock = html.match(
+    /<div[^>]+class=["'][^"']*position-relative[^"']*["'][^>]*>([\s\S]*?)<\/div>/i
+  );
+  if (!infoBlock) {
     return null;
   }
-  const paragraphMatches = [...storyBlock[1].matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)];
-  if (paragraphMatches.length === 0) {
-    const text = stripTags(storyBlock[1]);
-    return text ? text : null;
-  }
+  const paragraphMatches = [...infoBlock[1].matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)];
   const paragraphs = paragraphMatches
     .map((match) => stripTags(match[1]))
     .filter((text) => text.length > 0);
@@ -92,6 +103,7 @@ function extractImageDetails(html: string, pageUrl: string) {
   const ogMatch = html.match(/property=["']og:image["'][^>]+content=["']([^"']+)["']/i);
   const ogDesc = html.match(/property=["']og:description["'][^>]+content=["']([^"']+)["']/i);
   const metaDesc = html.match(/name=["']description["'][^>]+content=["']([^"']+)["']/i);
+  const subtitleMatch = html.match(/<h3[^>]*>([\s\S]*?)<\/h3>/i);
   const storyMatch = extractStory(html);
   const paragraphMatch = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
   const bodyDesc =
@@ -101,7 +113,11 @@ function extractImageDetails(html: string, pageUrl: string) {
     (storyMatch ? [storyMatch, storyMatch] : null) ??
     (paragraphMatch ? [paragraphMatch[0], paragraphMatch[1]] : null);
   const titleMatch = html.match(/<h1[^>]*>(.*?)<\/h1>/i);
-  const description = ogDesc?.[1] ?? metaDesc?.[1] ?? (bodyDesc ? stripTags(bodyDesc[1]) : null);
+  const description =
+    ogDesc?.[1] ??
+    metaDesc?.[1] ??
+    (subtitleMatch ? stripTags(subtitleMatch[1]) : null) ??
+    (bodyDesc ? stripTags(bodyDesc[1]) : null);
   const fullDescription =
     storyMatch && (!description || storyMatch.length > description.length + 40)
       ? storyMatch
