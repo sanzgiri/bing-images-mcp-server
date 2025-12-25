@@ -36,6 +36,24 @@ function stripTags(value: string) {
   return value.replace(/<[^>]+>/g, '').trim();
 }
 
+function extractStory(html: string) {
+  const storyBlock = html.match(
+    /<div[^>]+class=["'][^"']*story[^"']*["'][^>]*>([\s\S]*?)<\/div>/i
+  );
+  if (!storyBlock) {
+    return null;
+  }
+  const paragraphMatches = [...storyBlock[1].matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)];
+  if (paragraphMatches.length === 0) {
+    const text = stripTags(storyBlock[1]);
+    return text ? text : null;
+  }
+  const paragraphs = paragraphMatches
+    .map((match) => stripTags(match[1]))
+    .filter((text) => text.length > 0);
+  return paragraphs.length ? paragraphs.join('\n\n') : null;
+}
+
 function extractFirstImageLink(html: string) {
   const match = html.match(/href="(\/bing\/\d+)"/i);
   return match?.[1] ?? null;
@@ -72,19 +90,21 @@ function extractImageDetails(html: string, pageUrl: string) {
   const ogMatch = html.match(/property=["']og:image["'][^>]+content=["']([^"']+)["']/i);
   const ogDesc = html.match(/property=["']og:description["'][^>]+content=["']([^"']+)["']/i);
   const metaDesc = html.match(/name=["']description["'][^>]+content=["']([^"']+)["']/i);
-  const storyMatch = html.match(/<div[^>]+class=["'][^"']*story[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
+  const storyMatch = extractStory(html);
   const paragraphMatch = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
   const bodyDesc =
     html.match(
       /<(?:p|div)[^>]+class=["'][^"']*(?:description|desc)[^"']*["'][^>]*>(.*?)<\/(?:p|div)>/i
     ) ??
-    (storyMatch ? [storyMatch[0], storyMatch[1]] : null) ??
+    (storyMatch ? [storyMatch, storyMatch] : null) ??
     (paragraphMatch ? [paragraphMatch[0], paragraphMatch[1]] : null);
   const titleMatch = html.match(/<h1[^>]*>(.*?)<\/h1>/i);
+  const description = ogDesc?.[1] ?? metaDesc?.[1] ?? (bodyDesc ? stripTags(bodyDesc[1]) : null);
   return {
     title: titleMatch ? stripTags(titleMatch[1]) : 'Unknown Title',
     image_url: ogMatch?.[1] ?? null,
-    description: ogDesc?.[1] ?? metaDesc?.[1] ?? (bodyDesc ? stripTags(bodyDesc[1]) : null),
+    description,
+    full_description: storyMatch && storyMatch !== description ? storyMatch : null,
     page_url: pageUrl,
   };
 }

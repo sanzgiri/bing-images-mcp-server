@@ -7,12 +7,14 @@ interface ImageInfoProps {
   image: {
     title: string;
     description?: string | null;
+    full_description?: string | null;
     page_url: string;
   };
 }
 
 export default function ImageInfo({ image }: ImageInfoProps) {
   const [isOpen, setIsOpen] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   if (!isOpen) {
     return (
@@ -43,6 +45,18 @@ export default function ImageInfo({ image }: ImageInfoProps) {
       </div>
       {image.description && (
         <p className="text-white/70 text-sm mb-3">{image.description}</p>
+      )}
+      {image.full_description && (
+        <div className="text-white/70 text-sm mb-3 whitespace-pre-line">
+          {isExpanded ? image.full_description : null}
+          <button
+            type="button"
+            onClick={() => setIsExpanded((prev) => !prev)}
+            className="ml-2 text-white/80 hover:text-white underline"
+          >
+            {isExpanded ? 'Show less' : 'Read more'}
+          </button>
+        </div>
       )}
       <div className="flex items-center gap-2 text-white/60 text-sm">
         <Info className="w-4 h-4" />
