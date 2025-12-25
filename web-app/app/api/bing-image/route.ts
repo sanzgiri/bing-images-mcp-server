@@ -70,10 +70,21 @@ function extractImageLinkByDate(html: string, date: string) {
 
 function extractImageDetails(html: string, pageUrl: string) {
   const ogMatch = html.match(/property=["']og:image["'][^>]+content=["']([^"']+)["']/i);
+  const ogDesc = html.match(/property=["']og:description["'][^>]+content=["']([^"']+)["']/i);
+  const metaDesc = html.match(/name=["']description["'][^>]+content=["']([^"']+)["']/i);
+  const storyMatch = html.match(/<div[^>]+class=["'][^"']*story[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
+  const paragraphMatch = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+  const bodyDesc =
+    html.match(
+      /<(?:p|div)[^>]+class=["'][^"']*(?:description|desc)[^"']*["'][^>]*>(.*?)<\/(?:p|div)>/i
+    ) ??
+    (storyMatch ? [storyMatch[0], storyMatch[1]] : null) ??
+    (paragraphMatch ? [paragraphMatch[0], paragraphMatch[1]] : null);
   const titleMatch = html.match(/<h1[^>]*>(.*?)<\/h1>/i);
   return {
     title: titleMatch ? stripTags(titleMatch[1]) : 'Unknown Title',
     image_url: ogMatch?.[1] ?? null,
+    description: ogDesc?.[1] ?? metaDesc?.[1] ?? (bodyDesc ? stripTags(bodyDesc[1]) : null),
     page_url: pageUrl,
   };
 }
