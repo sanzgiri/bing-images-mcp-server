@@ -1,35 +1,40 @@
-# Bing Explorer Web App
+# Bing Image Quiz Web App
 
-A Next.js application that displays the Bing Image of the Day and allows users to chat about it using an LLM.
+A Next.js app that:
+
+- Loads the **Bing Image of the Day** (from Peapix), optionally through the deployed MCP server.
+- Offers an **AI chat** to ask questions about the image.
+- Generates a **5-question AI quiz** about the image and grades you live.
 
 ## Setup
 
-1.  **Install Dependencies**:
-    ```bash
-    npm install
-    ```
+```bash
+npm install
+```
 
-2.  **Environment Variables**:
-    Create a `.env.local` file in the root of the `web-app` directory:
-    ```bash
-    OPENAI_API_KEY=sk-...
-    ```
+Create `.env.local`:
 
-3.  **Run the Web App**:
-    ```bash
-    npm run dev
-    ```
+```bash
+OPENAI_API_KEY=sk-...
+# Optional: route image lookups through the MCP server instead of the bundled scraper.
+# MCP_SERVER_URL=https://your-mcp-server.onrender.com
+```
 
-## Features
+```bash
+npm run dev
+```
 
-- Fetches the latest Bing Image of the Day from Peapix (server-side).
-- Interactive chat interface to ask questions about the image.
-- Powered by Vercel AI SDK and OpenAI.
+## API routes
 
-## API
+- `GET /api/bing-image?country=us` — latest image.
+- `GET /api/bing-image?country=us&date=2024-06-01` — specific date.
+- `GET /api/bing-image?country=us&random=true` — random image from the country's gallery.
+- `GET /api/bing-image?randomCountry=true` — random country.
+- `POST /api/chat` — streams chat replies grounded on the current image.
+- `POST /api/quiz` — body `{ imageContext }`; returns `{ questions: Question[] }` (5 MCQs).
 
-The app exposes an internal API endpoint at `/api/bing-image`.
-- Latest image: `/api/bing-image?country=us`
-- Specific date: `/api/bing-image?country=us&date=2023-01-01`
-- Random image: `/api/bing-image?country=us&random=true`
-- Random country: `/api/bing-image?country=random` or `/api/bing-image?randomCountry=true`
+## Deploying
+
+See the project root `DEPLOYMENT.md`. TL;DR:
+- Front-end → **Vercel** (set root dir to `web-app/`, add `OPENAI_API_KEY`).
+- MCP server → **Render** (Dockerfile in repo root).

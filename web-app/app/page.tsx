@@ -1,4 +1,5 @@
 import Chat from './components/Chat';
+import Quiz from './components/Quiz';
 import { unstable_noStore as noStore } from 'next/cache';
 import { headers } from 'next/headers';
 import ImageInfo from './components/ImageInfo';
@@ -14,12 +15,34 @@ export default async function Home() {
   const res = await fetch(`${proto}://${host}/api/bing-image?country=us&random=true`, {
     cache: 'no-store',
   });
-  const image = res.ok ? await res.json() : null;
+  let image = null;
+  let errorMessage: string | null = null;
+  if (res.ok) {
+    image = await res.json();
+  } else {
+    try {
+      const body = await res.json();
+      errorMessage = body?.error ?? `HTTP ${res.status}`;
+    } catch {
+      errorMessage = `HTTP ${res.status}`;
+    }
+  }
 
   if (!image) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black text-white">
-        <p>Failed to load image. Please try again.</p>
+      <div className="min-h-screen flex items-center justify-center bg-black text-white p-6">
+        <div className="max-w-md text-center space-y-3">
+          <p className="text-lg font-medium">Failed to load image.</p>
+          {errorMessage && (
+            <p className="text-sm text-white/60 break-words">{errorMessage}</p>
+          )}
+          <a
+            href="/?random=true"
+            className="inline-block rounded-full border border-white/20 px-4 py-1.5 text-sm hover:bg-white/10"
+          >
+            Try again
+          </a>
+        </div>
       </div>
     );
   }
@@ -43,6 +66,9 @@ export default async function Home() {
               Bing Image of the Day
             </h1>
             <p className="text-white/70 text-sm mt-1">Powered by Peapix</p>
+            <div className="mt-3">
+              <Quiz imageContext={image} />
+            </div>
           </div>
           <a
             href="/?random=true"
@@ -58,7 +84,7 @@ export default async function Home() {
         </div>
       </div>
 
-      {/* Chat Interface */}
+      {/* Chat interface (Quiz button moved into the header above) */}
       <Chat imageContext={image} />
     </main>
   );

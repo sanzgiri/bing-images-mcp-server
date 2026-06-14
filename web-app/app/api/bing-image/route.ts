@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { mcpGetImage, mcpGetLatestImage } from '@/lib/mcpClient';
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
@@ -142,14 +143,99 @@ async function fetchHtml(url: string) {
     cache: 'no-store',
     headers: {
       'user-agent':
-        'Mozilla/5.0 (compatible; BingExplorer/1.0; +https://github.com/sanzgiri/bing-images-mcp-server)',
-      accept: 'text/html',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'accept-language': 'en-US,en;q=0.9',
     },
   });
   if (!response.ok) {
-    throw new Error(`Failed to fetch ${url}`);
+    throw new Error(`Failed to fetch ${url}: HTTP ${response.status}`);
   }
   return response.text();
+}
+
+// ---------------------------------------------------------------------------
+// Peapix's public JSON feed. This is far more reliable than HTML scraping
+// (and survives bot-filtering on serverless platforms like Vercel).
+//   GET /bing/feed?country=us[&date=YYYY-MM-DD]
+// Returns an array of items (newest first) shaped like:
+//   { title, copyright, fullUrl, thumbUrl, imageUrl, pageUrl, date }
+// ---------------------------------------------------------------------------
+interface FeedItem {
+  title: string;
+  copyright?: string;
+  fullUrl?: string;
+  thumbUrl?: string;
+  imageUrl?: string;
+  pageUrl: string;
+  date: string;
+}
+
+async function fetchFeed(country: string): Promise<FeedItem[]> {
+  const url = `${BASE_URL}/bing/feed?country=${encodeURIComponent(country)}`;
+  const response = await fetch(url, {
+    cache: 'no-store',
+    headers: {
+      'user-agent':
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      accept: 'application/json,*/*;q=0.9',
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`Feed fetch failed: HTTP ${response.status}`);
+  }
+  const data = (await response.json()) as FeedItem[];
+  return Array.isArray(data) ? data : [];
+}
+
+function feedItemToDetails(item: FeedItem) {
+  const description = item.copyright?.trim() || null;
+  return {
+    title: item.title,
+    image_url: item.fullUrl ?? item.imageUrl ?? item.thumbUrl ?? null,
+    description,
+    full_description: null as string | null,
+    page_url: item.pageUrl,
+  };
+}
+
+/** Try to enrich the basic feed item with the long story from the HTML page. */
+async function enrichWithStory(
+  details: ReturnType<typeof feedItemToDetails>
+): Promise<ReturnType<typeof feedItemToDetails>> {
+  if (!details.page_url) return details;
+  try {
+    const html = await fetchHtml(details.page_url);
+    const story = extractStory(html);
+    if (story) {
+      return { ...details, full_description: story };
+    }
+  } catch (err) {
+    console.warn('Story enrichment failed (non-fatal):', err);
+  }
+  return details;
+}
+
+async function fetchViaFeed(
+  country: string,
+  mode: 'latest' | 'random' | string
+) {
+  const items = await fetchFeed(country);
+  if (!items.length) return null;
+
+  let pick: FeedItem | undefined;
+  if (mode === 'random') {
+    pick = items[Math.floor(Math.random() * items.length)];
+  } else if (mode === 'latest') {
+    pick = items[0];
+  } else {
+    // mode is a date string YYYY-MM-DD
+    pick = items.find((it) => it.date === mode) ?? undefined;
+  }
+  if (!pick) return null;
+
+  const base = feedItemToDetails(pick);
+  return enrichWithStory(base);
 }
 
 async function fetchDirect(country: string, date?: string) {
@@ -201,6 +287,28 @@ export async function GET(request: Request) {
       : countryParam;
 
   try {
+    // 1) Primary: Peapix's JSON feed — reliable on Vercel and easy to parse.
+    try {
+      const mode = random ? 'random' : date ?? 'latest';
+      const viaFeed = await fetchViaFeed(country, mode);
+      if (viaFeed && viaFeed.image_url) {
+        return NextResponse.json(viaFeed);
+      }
+    } catch (feedErr) {
+      console.warn('Feed path failed, will try MCP/HTML next:', feedErr);
+    }
+
+    // 2) Optional: MCP server (if MCP_SERVER_URL is set and mode != random).
+    if (process.env.MCP_SERVER_URL && !random) {
+      const viaMcp = date
+        ? await mcpGetImage(country, date)
+        : await mcpGetLatestImage(country);
+      if (viaMcp && viaMcp.image_url) {
+        return NextResponse.json(viaMcp);
+      }
+    }
+
+    // 3) Last resort: in-process HTML scraper.
     const details = await fetchDirect(country, random ? 'random' : date ?? undefined);
     if (!details) {
       return NextResponse.json({ error: 'Image not found.' }, { status: 404 });

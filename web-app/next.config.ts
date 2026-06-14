@@ -1,10 +1,12 @@
 import type { NextConfig } from "next";
+import path from "node:path";
 
 const nextConfig: NextConfig = {
-  experimental: {
-    serverActions: {
-      allowedOrigins: ["10.0.0.161:3000", "10.0.0.161:3001", "localhost:3000", "localhost:3001"],
-    },
+  // Pin Turbopack's workspace root so it ignores any stray package-lock.json
+  // higher up the filesystem (e.g. ~/package-lock.json). Without this, Next
+  // shows a dev-mode "1 Issue" badge that obscures the quiz button.
+  turbopack: {
+    root: path.join(__dirname),
   },
 };
 

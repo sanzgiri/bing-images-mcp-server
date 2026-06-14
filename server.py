@@ -1,133 +1,151 @@
+"""FastMCP server that exposes Bing Image of the Day data from peapix.com."""
+
+from __future__ import annotations
+
+import json
+import re
+from datetime import datetime
+from typing import Any
+
 import httpx
 from bs4 import BeautifulSoup
 from mcp.server.fastmcp import FastMCP
-import re
 
-# Initialize FastMCP server
 mcp = FastMCP("bing-images")
 
 BASE_URL = "https://peapix.com"
+USER_AGENT = (
+    "Mozilla/5.0 (compatible; BingImagesMCP/1.0; "
+    "+https://github.com/sanzgiri/bing-images-mcp-server)"
+)
+DEFAULT_HEADERS = {"user-agent": USER_AGENT, "accept": "text/html"}
 
-def get_image_details(url: str) -> dict:
-    """
-    Fetches image details from a specific image page on peapix.com.
-    """
+
+def _http_get(url: str) -> httpx.Response:
+    """Perform a GET with shared client settings."""
+    with httpx.Client(headers=DEFAULT_HEADERS, timeout=15.0) as client:
+        response = client.get(url, follow_redirects=True)
+        response.raise_for_status()
+        return response
+
+
+def _extract_text(node) -> str | None:
+    if node is None:
+        return None
+    text = node.get_text(strip=True)
+    return text or None
+
+
+def get_image_details(url: str) -> dict[str, Any]:
+    """Fetch image details from a specific peapix image page."""
     try:
-        with httpx.Client() as client:
-            response = client.get(url, follow_redirects=True)
-            response.raise_for_status()
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # Find the image URL - usually in an og:image meta tag or a specific img tag
-            # Peapix seems to have high res images.
-            # Looking at the structure from previous steps, we need to find the download link or the main image.
-            
-            # Strategy: Look for the main image container
-            # Based on typical structure, there might be a 'download' button or similar.
-            # Let's try to find the largest image or the one that looks like the wallpaper.
-            
-            # Often og:image is a good fallback
-            og_image = soup.find("meta", property="og:image")
-            image_url = og_image["content"] if og_image else None
-            
-            # Title
-            title_tag = soup.find("h1")
-            title = title_tag.get_text(strip=True) if title_tag else "Unknown Title"
-            
-            # Description/Copyright - often in a paragraph or div below
-            # This might require more specific parsing if we want exact details, 
-            # but for now let's return what we can find.
-            
-            return {
-                "title": title,
-                "image_url": image_url,
-                "page_url": url
-            }
-    except Exception as e:
-        return {"error": str(e)}
+        response = _http_get(url)
+    except Exception as exc:  # pragma: no cover - network failure path
+        return {"error": str(exc), "page_url": url}
+
+    soup = BeautifulSoup(response.text, "html.parser")
+
+    og_image = soup.find("meta", property="og:image")
+    image_url = og_image["content"] if og_image and og_image.has_attr("content") else None
+
+    og_desc = soup.find("meta", property="og:description")
+    meta_desc = soup.find("meta", attrs={"name": "description"})
+    description = None
+    if og_desc and og_desc.has_attr("content"):
+        description = og_desc["content"].strip() or None
+    if not description and meta_desc and meta_desc.has_attr("content"):
+        description = meta_desc["content"].strip() or None
+
+    title = _extract_text(soup.find("h1")) or "Unknown Title"
+
+    # Long-form story (used to ground quiz questions).
+    paragraphs = [
+        text
+        for text in (_extract_text(p) for p in soup.find_all("p"))
+        if text and len(text) > 40
+    ]
+    full_description = "\n\n".join(paragraphs[:4]) if paragraphs else None
+
+    return {
+        "title": title,
+        "image_url": image_url,
+        "description": description,
+        "full_description": full_description,
+        "page_url": url,
+    }
+
+
+def _find_image_link_for_date(soup: BeautifulSoup, target_date_str: str) -> str | None:
+    """Find the /bing/<id> link whose surrounding text contains the date string."""
+    for anchor in soup.find_all("a", href=True):
+        href = anchor["href"]
+        if href.startswith("/bing/") and href[len("/bing/") :].isdigit():
+            parent_text = anchor.parent.get_text(" ", strip=True) if anchor.parent else ""
+            if target_date_str in parent_text:
+                return href
+    return None
+
+
+def _find_first_image_link(soup: BeautifulSoup) -> str | None:
+    for anchor in soup.find_all("a", href=True):
+        href = anchor["href"]
+        if href.startswith("/bing/") and href[len("/bing/") :].isdigit():
+            return href
+    return None
+
 
 @mcp.tool()
 def get_bing_image(country: str, date: str) -> str:
-    """
-    Fetches the Bing image of the day for a specific country and date.
-    
-    Args:
-        country: The 2-letter country code (e.g., 'us', 'gb', 'de', 'fr', 'jp', 'au', 'ca', 'cn', 'in').
-        date: The date in YYYY-MM-DD format.
-    
-    Returns:
-        A string containing the image details (Title, Image URL, Page URL) or an error message.
-    """
-    # Validate date format
+    """Fetch the Bing image of the day for a country (2-letter code) and date (YYYY-MM-DD)."""
     if not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
-        return "Error: Date must be in YYYY-MM-DD format."
-    
-    year, month, day = date.split("-")
-    
-    # Construct the monthly list URL to find the specific day
-    # Peapix structure: https://peapix.com/bing/[country]/[year]/[month]
-    list_url = f"{BASE_URL}/bing/{country}/{year}/{month}"
-    
-    # Parse date to get Month Name and Day (e.g., "January 01")
-    from datetime import datetime
-    date_obj = datetime.strptime(date, "%Y-%m-%d")
-    target_date_str = date_obj.strftime("%B %d") # e.g., "January 01"
-    
+        return json.dumps({"error": "Date must be in YYYY-MM-DD format."})
+
     try:
-        with httpx.Client() as client:
-            response = client.get(list_url, follow_redirects=True)
-            if response.status_code == 404:
-                return f"Error: No data found for country '{country}' in {year}-{month}."
-            response.raise_for_status()
-            
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # Find the link that corresponds to the date
-            # The parent text usually contains the date like "DescriptionJanuary 01"
-            for a in soup.find_all('a', href=True):
-                href = a['href']
-                if href.startswith('/bing/') and href[6:].isdigit():
-                    parent_text = a.parent.get_text(strip=True)
-                    if target_date_str in parent_text:
-                        image_page_url = f"{BASE_URL}{href}"
-                        details = get_image_details(image_page_url)
-                        return json.dumps(details)
-            
-            return json.dumps({"error": f"Image for date {date} not found on the page."})
+        date_obj = datetime.strptime(date, "%Y-%m-%d")
+    except ValueError as exc:
+        return json.dumps({"error": f"Invalid date: {exc}"})
 
-    except Exception as e:
-        return json.dumps({"error": f"Error fetching data: {str(e)}"})
+    year, month, _ = date.split("-")
+    list_url = f"{BASE_URL}/bing/{country}/{year}/{month}"
+    target_date_str = date_obj.strftime("%B %d")
 
-    except Exception as e:
-        return f"Error fetching data: {str(e)}"
+    try:
+        response = _http_get(list_url)
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 404:
+            return json.dumps(
+                {"error": f"No data found for country '{country}' in {year}-{month}."}
+            )
+        return json.dumps({"error": f"HTTP error: {exc}"})
+    except Exception as exc:  # pragma: no cover
+        return json.dumps({"error": f"Error fetching data: {exc}"})
 
-import json
+    soup = BeautifulSoup(response.text, "html.parser")
+    href = _find_image_link_for_date(soup, target_date_str)
+    if not href:
+        return json.dumps({"error": f"Image for date {date} not found."})
+
+    details = get_image_details(f"{BASE_URL}{href}")
+    return json.dumps(details)
+
 
 @mcp.tool()
 def get_latest_bing_image(country: str) -> str:
-    """
-    Fetches the latest Bing image of the day for a specific country.
-    """
-    url = f"{BASE_URL}/bing/{country}"
+    """Fetch the latest Bing image of the day for a country (2-letter code)."""
+    list_url = f"{BASE_URL}/bing/{country}"
     try:
-        with httpx.Client() as client:
-            response = client.get(url, follow_redirects=True)
-            response.raise_for_status()
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # The first image in the gallery is usually the latest.
-            # Look for the first link that matches /bing/\d+
-            for a in soup.find_all('a', href=True):
-                href = a['href']
-                if href.startswith('/bing/') and href[6:].isdigit():
-                    image_page_url = f"{BASE_URL}{href}"
-                    details = get_image_details(image_page_url)
-                    return json.dumps(details)
-            
-            return json.dumps({"error": "No images found."})
-            
-    except Exception as e:
-        return json.dumps({"error": str(e)})
+        response = _http_get(list_url)
+    except Exception as exc:
+        return json.dumps({"error": str(exc)})
+
+    soup = BeautifulSoup(response.text, "html.parser")
+    href = _find_first_image_link(soup)
+    if not href:
+        return json.dumps({"error": "No images found."})
+
+    details = get_image_details(f"{BASE_URL}{href}")
+    return json.dumps(details)
+
 
 if __name__ == "__main__":
     mcp.run()
