@@ -155,6 +155,99 @@ async function fetchHtml(url: string) {
 }
 
 // ---------------------------------------------------------------------------
+// Bing's official Image Archive endpoint. This is the most reliable source
+// because it's served by Microsoft and never blocks serverless IPs.
+//   GET https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=8&mkt=en-US
+// `idx` is offset-from-today (0..7), `n` is how many days back to return.
+// ---------------------------------------------------------------------------
+const COUNTRY_TO_MARKET: Record<string, string> = {
+  us: 'en-US',
+  gb: 'en-GB',
+  ca: 'en-CA',
+  au: 'en-AU',
+  in: 'en-IN',
+  de: 'de-DE',
+  fr: 'fr-FR',
+  jp: 'ja-JP',
+  cn: 'zh-CN',
+};
+
+interface BingImage {
+  startdate: string;       // YYYYMMDD
+  url: string;             // /th?id=...&...1920x1080.jpg...
+  urlbase: string;
+  copyright: string;       // "Title (© Author/Source)"
+  copyrightlink: string;   // search URL
+  title: string;
+  quiz?: string;
+  hsh?: string;
+}
+
+interface BingFeed {
+  images: BingImage[];
+}
+
+function parseCopyright(copyright: string): { title: string; credit: string | null } {
+  // "Sunset in Badlands National Park, South Dakota, USA (© Troy Harrison/Getty Images)"
+  const match = copyright.match(/^(.*?)\s*\((.*?)\)\s*$/);
+  if (match) {
+    return { title: match[1].trim(), credit: match[2].trim() };
+  }
+  return { title: copyright.trim(), credit: null };
+}
+
+function bingImageToDetails(img: BingImage) {
+  const { title, credit } = parseCopyright(img.copyright);
+  // Build an absolute, max-resolution image URL.
+  // Prefer UHD via urlbase when possible.
+  const fullUrl = img.urlbase
+    ? `https://www.bing.com${img.urlbase}_UHD.jpg`
+    : `https://www.bing.com${img.url}`;
+  return {
+    title,
+    image_url: fullUrl,
+    description: credit,
+    full_description: null as string | null,
+    page_url: img.copyrightlink, // a real, working Bing search link
+  };
+}
+
+async function fetchBingFeed(country: string): Promise<BingImage[]> {
+  const market = COUNTRY_TO_MARKET[country] ?? 'en-US';
+  const url = `https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=8&mkt=${market}`;
+  const response = await fetch(url, {
+    cache: 'no-store',
+    headers: {
+      'user-agent':
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      accept: 'application/json,*/*;q=0.9',
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`Bing feed fetch failed: HTTP ${response.status}`);
+  }
+  const data = (await response.json()) as BingFeed;
+  return Array.isArray(data?.images) ? data.images : [];
+}
+
+async function fetchViaBing(country: string, mode: string) {
+  const images = await fetchBingFeed(country);
+  if (!images.length) return null;
+
+  let pick: BingImage | undefined;
+  if (mode === 'random') {
+    pick = images[Math.floor(Math.random() * images.length)];
+  } else if (mode === 'latest') {
+    pick = images[0];
+  } else {
+    // YYYY-MM-DD -> YYYYMMDD
+    const target = mode.replace(/-/g, '');
+    pick = images.find((it) => it.startdate === target);
+  }
+  return pick ? bingImageToDetails(pick) : null;
+}
+
+// ---------------------------------------------------------------------------
 // Peapix's public JSON feed. This is far more reliable than HTML scraping
 // (and survives bot-filtering on serverless platforms like Vercel).
 //   GET /bing/feed?country=us[&date=YYYY-MM-DD]
@@ -287,18 +380,29 @@ export async function GET(request: Request) {
       : countryParam;
 
   try {
-    // 1) Primary: Peapix's JSON feed — reliable on Vercel and easy to parse.
+    const mode = random ? 'random' : date ?? 'latest';
+
+    // 1) Primary: Bing's own official API. Never blocks serverless IPs.
     try {
-      const mode = random ? 'random' : date ?? 'latest';
+      const viaBing = await fetchViaBing(country, mode);
+      if (viaBing && viaBing.image_url) {
+        return NextResponse.json(viaBing);
+      }
+    } catch (bingErr) {
+      console.warn('Bing feed failed, trying Peapix:', bingErr);
+    }
+
+    // 2) Secondary: Peapix's JSON feed (richer descriptions when reachable).
+    try {
       const viaFeed = await fetchViaFeed(country, mode);
       if (viaFeed && viaFeed.image_url) {
         return NextResponse.json(viaFeed);
       }
     } catch (feedErr) {
-      console.warn('Feed path failed, will try MCP/HTML next:', feedErr);
+      console.warn('Peapix feed failed, trying MCP/HTML next:', feedErr);
     }
 
-    // 2) Optional: MCP server (if MCP_SERVER_URL is set and mode != random).
+    // 3) Optional: MCP server (if MCP_SERVER_URL is set and mode != random).
     if (process.env.MCP_SERVER_URL && !random) {
       const viaMcp = date
         ? await mcpGetImage(country, date)
@@ -308,7 +412,7 @@ export async function GET(request: Request) {
       }
     }
 
-    // 3) Last resort: in-process HTML scraper.
+    // 4) Last resort: HTML scraper (often blocked on serverless).
     const details = await fetchDirect(country, random ? 'random' : date ?? undefined);
     if (!details) {
       return NextResponse.json({ error: 'Image not found.' }, { status: 404 });
