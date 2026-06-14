@@ -382,27 +382,9 @@ export async function GET(request: Request) {
   try {
     const mode = random ? 'random' : date ?? 'latest';
 
-    // 1) Primary: Bing's own official API. Never blocks serverless IPs.
-    try {
-      const viaBing = await fetchViaBing(country, mode);
-      if (viaBing && viaBing.image_url) {
-        return NextResponse.json(viaBing);
-      }
-    } catch (bingErr) {
-      console.warn('Bing feed failed, trying Peapix:', bingErr);
-    }
-
-    // 2) Secondary: Peapix's JSON feed (richer descriptions when reachable).
-    try {
-      const viaFeed = await fetchViaFeed(country, mode);
-      if (viaFeed && viaFeed.image_url) {
-        return NextResponse.json(viaFeed);
-      }
-    } catch (feedErr) {
-      console.warn('Peapix feed failed, trying MCP/HTML next:', feedErr);
-    }
-
-    // 3) Optional: MCP server (if MCP_SERVER_URL is set and mode != random).
+    // 1) Primary (if configured): MCP server (Peapix proxied through Render).
+    //    This gives us the full Peapix catalog WITH long-form descriptions.
+    //    Random uses Bing because the MCP server only exposes latest + date.
     if (process.env.MCP_SERVER_URL && !random) {
       const viaMcp = date
         ? await mcpGetImage(country, date)
@@ -412,7 +394,28 @@ export async function GET(request: Request) {
       }
     }
 
-    // 4) Last resort: HTML scraper (often blocked on serverless).
+    // 2) Fallback: Bing's own HPImageArchive feed. Never blocks serverless IPs.
+    //    Only covers the last ~8 days and has no long descriptions.
+    try {
+      const viaBing = await fetchViaBing(country, mode);
+      if (viaBing && viaBing.image_url) {
+        return NextResponse.json(viaBing);
+      }
+    } catch (bingErr) {
+      console.warn('Bing feed failed, trying Peapix direct:', bingErr);
+    }
+
+    // 3) Fallback: Peapix's JSON feed directly (may 403 on Vercel IPs).
+    try {
+      const viaFeed = await fetchViaFeed(country, mode);
+      if (viaFeed && viaFeed.image_url) {
+        return NextResponse.json(viaFeed);
+      }
+    } catch (feedErr) {
+      console.warn('Peapix feed failed, trying HTML scraper:', feedErr);
+    }
+
+    // 4) Last resort: HTML scraper (will fail if Peapix blocks the IP).
     const details = await fetchDirect(country, random ? 'random' : date ?? undefined);
     if (!details) {
       return NextResponse.json({ error: 'Image not found.' }, { status: 404 });
