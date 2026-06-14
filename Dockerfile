@@ -15,6 +15,6 @@ RUN uv sync --frozen --no-dev
 
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Render injects $PORT (10000 by default). Fall back to 8080 locally.
-EXPOSE 10000
+# Host injects $PORT (Fly: 8080, Render: 10000). Fall back to 8080 locally.
+EXPOSE 8080
 CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}"]

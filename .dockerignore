@@ -1,0 +1,34 @@
+# Keep the Docker context small.
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Web app — not part of the MCP server image.
+web-app/
+
+# Local files
+.env
+.env.*
+.DS_Store
+.git/
+.github/
+.vscode/
+.idea/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Docs / config we don't need in the container
+docs/
+README.md
+DEPLOYMENT.md
+AGENTS.md
+render.yaml
+run_local.sh
+test_server.py
