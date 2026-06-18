@@ -25,8 +25,8 @@ build/
 *.egg-info/
 
 # Docs / config we don't need in the container
+# (README.md is intentionally kept — pyproject.toml references it.)
 docs/
-README.md
 DEPLOYMENT.md
 AGENTS.md
 render.yaml
