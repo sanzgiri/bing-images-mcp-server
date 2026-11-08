@@ -1,0 +1,43 @@
+name: Update World Lens archive
+on:
+  schedule:
+    - cron: '23 10 * * *'
+  workflow_dispatch:
+    inputs:
+      backfill_current_year:
+        description: Recheck the current year's archive to recover missed feed days
+        type: boolean
+        default: false
+permissions:
+  contents: write
+concurrency:
+  group: world-lens-archive
+  cancel-in-progress: false
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - name: Check parser and matching rules
+        run: python -m unittest discover -s scripts -p 'test_atlas_catalog.py'
+      - name: Collect new English images
+        run: python scripts/atlas_archive.py
+      - name: Recover missed dates when requested
+        if: inputs.backfill_current_year
+        run: python scripts/atlas_archive.py --backfill-year "$(date -u +%Y)"
+      - name: Resolve source-named locations
+        run: python scripts/atlas_geocode.py --reindex --rematch
+      - name: Publish the shared catalog
+        run: |
+          git config user.name 'World Lens updater'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add atlas-data/source-photos.json atlas-data/catalog.json atlas-data/manifest.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'Update World Lens archive catalog'
+            git pull --rebase
+            git push
+          fi
